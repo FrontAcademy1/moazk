@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sprix Study Assistant</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1020;--card:#151d32;--line:#2a3857;--text:#edf3ff;--muted:#a8b5d0;--accent:#73a7ff}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#0b1020,#101b31);font-family:system-ui,Arial,sans-serif;color:var(--text)}
+main{max-width:1000px;margin:auto;padding:20px}.hero{padding:20px 0}.hero h1{margin:0 0 8px;font-size:clamp(25px,5vw,38px)}.hero p{color:var(--muted);line-height:1.8}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:16px}.card{background:rgba(21,29,50,.96);border:1px solid var(--line);border-radius:18px;padding:18px;min-width:0}
+h2{font-size:20px;margin-top:0}label{display:block;margin:12px 0 6px;color:var(--muted)}input,textarea{width:100%;border:1px solid var(--line);border-radius:10px;background:#0c1427;color:var(--text);padding:12px;font:inherit}textarea{min-height:145px;resize:vertical}
+button{background:var(--accent);color:#081126;font-weight:700;border:0;border-radius:10px;padding:12px 16px;margin-top:12px;width:100%;font:inherit;cursor:pointer}button:disabled{opacity:.55}
+.small{font-size:13px;color:var(--muted);line-height:1.7}.result{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.8;margin-top:14px}.chips{display:flex;gap:8px;flex-wrap:wrap}.chip{border:1px solid var(--line);border-radius:999px;padding:5px 10px;font-size:12px;color:var(--muted)}a{color:#a9caff}.warn{border-right:3px solid #eab308;padding:10px 12px;background:#302810;border-radius:8px;line-height:1.7}
+</style>
+</head>
+<body><main>
+<header class="hero">
+<div class="chips"><span class="chip">Playwright + Chromium</span><span class="chip">AI اختياري</span><span class="chip">تقارير وصور</span></div>
+<h1>Sprix Study Assistant</h1>
+<p>أداة دراسة وفحص واجهات الويب من الموبايل. تفحص الصفحة وتحفظ صورة وتقريرًا، وتساعدك على فهم الأسئلة والتدرّب عليها.</p>
+<div class="warn">وضع آمن للدراسة: لا تحفظ بيانات الدخول، ولا تضغط أزرار إرسال الإجابات أو تنفذ اختبارًا مُقيّمًا بدلًا منك. سجّل الدخول بنفسك في المتصفح المعتاد، ثم استخدم الأداة للشرح أو اختبر صفحات عامة/تجريبية مصرحًا بها.</div>
+</header>
+<div class="grid">
+<section class="card">
+<h2>1) فحص صفحة ويب</h2>
+<label for="url">رابط الصفحة العامة أو التجريبية</label>
+<input id="url" type="url" value="https://sprixportal.jp/" placeholder="https://example.com">
+<p class="small">الفحص الحالي لا يتجاوز تسجيل الدخول ولا يحاول تجاوز وسائل الحماية.</p>
+<button id="inspect">ابدأ الفحص</button>
+<div id="inspectResult" class="result" aria-live="polite"></div>
+</section>
+<section class="card">
+<h2>2) مساعد فهم الأسئلة</h2>
+<label for="question">الصق نص السؤال أو الدرس</label>
+<textarea id="question" placeholder="اكتب السؤال هنا، وسأساعدك على فهم المطلوب والخطوات..."></textarea>
+<button id="explain">اشرح لي السؤال</button>
+<div id="explainResult" class="result" aria-live="polite"></div>
+</section>
+</div>
+<p class="small">الملفات الناتجة: <code>reports/</code> و<code>screenshots/</code>. لا تضع كلمة المرور أو مفتاح API داخل هذه الصفحة أو في مستودع GitHub.</p>
+<script>
+async function postJson(path, body) {
+ const response = await fetch(path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+ const data = await response.json();
+ if(!response.ok) throw new Error(data.error || "حدث خطأ");
+ return data;
+}
+const inspectBtn=document.querySelector("#inspect");
+inspectBtn.addEventListener("click",async()=>{
+ const out=document.querySelector("#inspectResult"); inspectBtn.disabled=true;out.textContent="جارٍ فحص الصفحة...";
+ try{
+  const d=await postJson("/api/inspect",{url:document.querySelector("#url").value});
+  out.textContent=`العنوان: ${d.title}\nHTTP: ${d.http_status}\nالأزرار: ${(d.buttons||[]).join(" | ")||"لا توجد"}\nالروابط: ${(d.links||[]).slice(0,20).join(" | ")||"لا توجد"}\nالحقول: ${JSON.stringify(d.inputs||[],null,2)}\nأخطاء الصفحة: ${(d.page_errors||[]).join("\n")||"لا توجد"}\nالتقرير: ${d.report}\nالصورة: ${d.screenshot}\n\nمقتطف من النص:\n${(d.text||"").slice(0,2500)}`;
+ }catch(e){out.textContent="فشل الفحص: "+e.message}finally{inspectBtn.disabled=false}
+});
+const explainBtn=document.querySelector("#explain");
+explainBtn.addEventListener("click",async()=>{
+ const out=document.querySelector("#explainResult"); explainBtn.disabled=true;out.textContent="جارٍ إعداد الشرح...";
+ try{
+  const d=await postJson("/api/explain",{question:document.querySelector("#question").value});
+  out.textContent=(d.mode==="offline"?"وضع بدون API:\n":"شرح AI:\n")+d.explanation+(d.hint?"\n\nتلميح:\n"+d.hint:"");
+ }catch(e){out.textContent="تعذر الشرح: "+e.message}finally{explainBtn.disabled=false}
+});
+</script>
+</main></body></html>
